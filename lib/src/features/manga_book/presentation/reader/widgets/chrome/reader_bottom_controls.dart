@@ -10,14 +10,16 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../../../../constants/app_sizes.dart';
+import '../../../../../../constants/db_keys.dart';
 import '../../../../../../constants/enum.dart';
 import '../../../../../../routes/router_config.dart';
+import '../../../../../../utils/desktop/window_fullscreen.dart';
 import '../../../../../../utils/extensions/custom_extensions.dart';
 import '../../../../../../utils/motion/reduce_motion.dart';
 import '../../../../../../utils/theme/brand.dart';
 import '../../../../../offline/presentation/offline_save_button.dart';
+import '../../../../../settings/presentation/reader/widgets/reader_general_prefs/reader_general_prefs.dart';
 import '../../../../../settings/presentation/reader/widgets/reader_paged_prefs/reader_paged_prefs.dart';
-import '../../../../../settings/presentation/reader/widgets/reader_webtoon_prefs/reader_webtoon_prefs.dart';
 import '../../../../domain/chapter/chapter_model.dart';
 import '../../../../domain/chapter_page/chapter_page_model.dart';
 import '../../../../widgets/download_status_icon.dart';
@@ -87,18 +89,6 @@ class ReaderBottomControls extends ConsumerWidget {
     final settingsModel =
         ref.watch(readerSettingsModelProvider(chapter.mangaId));
     final offsetDoublePages = settingsModel.offsetDoublePages;
-    final cropBorders = isPagedMode
-        ? ref.watch(cropBordersProvider).ifNull()
-        : ref.watch(cropBordersWebtoonProvider).ifNull();
-
-    void toggleCropBorders() {
-      if (isPagedMode) {
-        ref.read(cropBordersProvider.notifier).update(!cropBorders);
-      } else {
-        ref.read(cropBordersWebtoonProvider.notifier).update(!cropBorders);
-      }
-    }
-
     void togglePageLayout() {
       final next = pageLayout == PageLayout.doublePages
           ? PageLayout.singlePage
@@ -190,15 +180,7 @@ class ReaderBottomControls extends ConsumerWidget {
                       icon: Icon(_readerModeIcon(resolvedReaderMode)),
                       onPressed: onOpenReaderMode,
                     ),
-                    IconButton(
-                      tooltip: context.l10n.cropBorders,
-                      icon: Icon(
-                        cropBorders
-                            ? FluentIcons.crop_24_regular
-                            : FluentIcons.full_screen_maximize_24_regular,
-                      ),
-                      onPressed: toggleCropBorders,
-                    ),
+                    const _ReaderFullscreenButton(),
                     if (isPagedMode && !dualPageSplitPaged)
                       IconButton(
                         tooltip: context.l10n.pageLayout,
@@ -232,6 +214,45 @@ class ReaderBottomControls extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Desktop resizes the window; mobile toggles immersive mode, which is the
+/// closest thing to fullscreen it has. Crop borders now live in settings only.
+class _ReaderFullscreenButton extends ConsumerWidget {
+  const _ReaderFullscreenButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (supportsWindowFullscreen) {
+      return ValueListenableBuilder<bool>(
+        valueListenable: desktopWindowFullscreen,
+        builder: (context, fullscreen, _) => IconButton(
+          tooltip: context.l10n.readerFullscreen,
+          onPressed: toggleDesktopWindowFullscreen,
+          icon: Icon(
+            fullscreen
+                ? FluentIcons.full_screen_minimize_24_regular
+                : FluentIcons.full_screen_maximize_24_regular,
+          ),
+        ),
+      );
+    }
+
+    final immersive =
+        ref.watch(readerFullscreenProvider).ifNull(
+          DBKeys.readerFullscreen.initial as bool,
+        );
+    return IconButton(
+      tooltip: context.l10n.readerFullscreen,
+      onPressed: () =>
+          ref.read(readerFullscreenProvider.notifier).update(!immersive),
+      icon: Icon(
+        immersive
+            ? FluentIcons.full_screen_minimize_24_regular
+            : FluentIcons.full_screen_maximize_24_regular,
       ),
     );
   }

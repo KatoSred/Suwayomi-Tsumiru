@@ -33,6 +33,7 @@ import '../../../manga_details/controller/scanlator_dedup.dart';
 import '../../controller/auto_scroll_controller.dart';
 import '../../controller/reader_controller.dart';
 import '../../controller/reader_settings_model.dart';
+import '../../controller/reader_zoom.dart';
 import '../../utils/download_ahead.dart';
 import '../../utils/reader_initial_page.dart';
 import '../../utils/reader_progress_queue.dart';
@@ -861,6 +862,7 @@ class MultiChapterPagedReaderMode extends HookConsumerWidget {
         disableZoomIn: settings.disableZoomIn,
         disableZoomOut: settings.pagedDisableZoomOut,
         navigateToPan: settings.navigateToPan,
+        sessionZoom: readerZoom,
       ),
     );
   }

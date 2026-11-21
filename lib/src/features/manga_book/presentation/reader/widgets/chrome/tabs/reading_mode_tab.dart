@@ -14,23 +14,18 @@ import '../../../../../../../widgets/compact_switch.dart';
 import '../../../../../../settings/presentation/reader/widgets/long_strip_width_limit_slider/long_strip_width_limit_slider.dart';
 import '../../../../../../settings/presentation/reader/widgets/reader_auto_webtoon_mode/reader_auto_webtoon_mode.dart';
 import '../../../../../../settings/presentation/reader/widgets/reader_mode_tile/reader_mode_tile.dart';
-import '../../../../../../settings/presentation/reader/widgets/reader_padding_slider/reader_padding_slider.dart';
 import '../../../../manga_details/controller/manga_details_controller.dart';
 import '../../../controller/auto_webtoon.dart';
 import '../../../controller/reader_mode_adapter.dart';
 import '../../../controller/reader_settings_model.dart';
 import '../../../utils/reader_mode_kind.dart';
 import 'int_slider_tile.dart';
+import 'reader_zoom_slider.dart';
 
 class ReadingModeTab extends ConsumerWidget {
-  const ReadingModeTab({
-    super.key,
-    required this.mangaId,
-    required this.readerPadding,
-  });
+  const ReadingModeTab({super.key, required this.mangaId});
 
   final int mangaId;
-  final ValueNotifier<double> readerPadding;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -137,11 +132,7 @@ class ReadingModeTab extends ConsumerWidget {
             ],
           ),
         ],
-        AsyncReaderPaddingSlider(
-          readerPadding: readerPadding,
-          onChanged: (value) =>
-              model.setSidePadding(value, perSeries: perSeries),
-        ),
+        const ReaderZoomSlider(),
         _GroupHeading(
           isLongStrip
               ? context.l10n.readerGroupWebtoonViewer

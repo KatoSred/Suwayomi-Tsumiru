@@ -67,17 +67,13 @@ Future<void> showReaderSettingsSheet({
   required WidgetRef ref,
   required int mangaId,
   required ValueNotifier<bool> visibility,
-  required ValueNotifier<double> readerPadding,
 }) {
   final navigator = Navigator.of(context);
   final route = _ReaderSettingsSheetRoute<void>(
     barrierLabel: MaterialLocalizations.of(context).scrimLabel,
     capturedThemes:
         InheritedTheme.capture(from: context, to: navigator.context),
-    builder: (_) => ReaderSettingsDialog(
-      mangaId: mangaId,
-      readerPadding: readerPadding,
-    ),
+    builder: (_) => ReaderSettingsDialog(mangaId: mangaId),
   );
 
   final wasVisible = visibility.value;
@@ -113,16 +109,9 @@ Future<void> showReaderSettingsSheet({
 }
 
 class ReaderSettingsDialog extends HookConsumerWidget {
-  const ReaderSettingsDialog({
-    super.key,
-    required this.mangaId,
-    required this.readerPadding,
-  });
+  const ReaderSettingsDialog({super.key, required this.mangaId});
 
   final int mangaId;
-
-  /// Share the live padding notifier so slider changes update the open reader.
-  final ValueNotifier<double> readerPadding;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -171,10 +160,7 @@ class ReaderSettingsDialog extends HookConsumerWidget {
               child: TouchTabPager(
                 controller: tabController,
                 children: [
-                  ReadingModeTab(
-                    mangaId: mangaId,
-                    readerPadding: readerPadding,
-                  ),
+                  ReadingModeTab(mangaId: mangaId),
                   GeneralTab(mangaId: mangaId),
                   CustomFilterTab(mangaId: mangaId),
                 ],

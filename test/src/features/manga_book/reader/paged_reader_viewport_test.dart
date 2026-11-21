@@ -7,9 +7,12 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:tsumiru/src/constants/enum.dart';
+import 'package:tsumiru/src/features/manga_book/presentation/reader/controller/reader_zoom.dart';
 import 'package:tsumiru/src/features/manga_book/presentation/reader/widgets/reader_mode/double_page_view.dart';
 import 'package:tsumiru/src/features/manga_book/presentation/reader/widgets/reader_mode/paged_display_window.dart';
 import 'package:tsumiru/src/features/manga_book/presentation/reader/widgets/reader_mode/paged_reader_viewport.dart';
@@ -222,4 +225,44 @@ void main() {
       expect(drawnZoomed(1), isFalse);
     },
   );
+
+  testWidgets('Ctrl + wheel does not turn the page', (tester) async {
+    final pages = _localPages(3);
+    final mapping = buildSpreadMapping(
+      pageCount: pages.length,
+      doublePages: false,
+      splitWide: false,
+      splitInvert: false,
+      isWide: (_) => false,
+    );
+    final controller = PagedReaderController();
+    final seen = <int>[];
+    await _pumpViewport(
+      tester,
+      controller: controller,
+      mapping: mapping,
+      pages: pages,
+      initialDisplayIndex: 0,
+      onRawPageChanged: seen.add,
+      callbacks: _callbacks(),
+    );
+    seen.clear();
+
+    final pointer = TestPointer(1, PointerDeviceKind.mouse);
+    pointer.hover(tester.getCenter(find.byType(PagedReaderViewport)));
+
+    // Plain wheel still pages.
+    await tester.sendEventToBinding(pointer.scroll(const Offset(0, 120)));
+    await tester.pumpAndSettle();
+    expect(seen, isNotEmpty, reason: 'wheel should keep turning pages');
+
+    seen.clear();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendEventToBinding(pointer.scroll(const Offset(0, 120)));
+    await tester.pumpAndSettle();
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+
+    expect(seen, isEmpty, reason: 'Ctrl + wheel belongs to reader zoom');
+    resetReaderZoom();
+  });
 }

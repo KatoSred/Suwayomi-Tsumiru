@@ -455,6 +455,7 @@
     "@readerPadding": {
         "description": "Slider title text for Reader Padding"
     },
+    "readerZoom": "缩放",
     "restoreBackupTitle": "还原备份",
     "@restoreBackupTitle": {
         "description": "Button text to create backup"

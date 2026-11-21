@@ -2481,6 +2481,7 @@
   "readerOverlay": "Reader initial overlay",
   "readerOverlaySubtitle": "Shows title and quick settings when opening a chapter",
   "readerPadding": "Reader padding",
+  "readerZoom": "Zoom",
   "readerFeedbackToasts": "Reading feedback toasts",
   "readerFeedbackToastsSubtitle": "Show messages like \"loading next chapter\" and \"no more chapters\"",
   "readerSwipeChapterToggle": "Swipe toggle",

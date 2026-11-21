@@ -15,7 +15,6 @@ import '../../../../settings/presentation/reader/widgets/reader_invert_tap_tile/
 import '../../../../settings/presentation/reader/widgets/reader_mode_tile/reader_mode_tile.dart';
 import '../../../../settings/presentation/reader/widgets/reader_navigation_layout_tile/reader_navigation_layout_tile.dart';
 import '../../../../settings/presentation/reader/widgets/reader_orientation/reader_orientation.dart';
-import '../../../../settings/presentation/reader/widgets/reader_padding_slider/reader_padding_slider.dart';
 import '../../../../settings/presentation/reader/widgets/reader_paged_prefs/reader_paged_prefs.dart';
 import '../../../../settings/presentation/reader/widgets/reader_pinch_to_zoom/reader_pinch_to_zoom.dart';
 import '../../../../settings/presentation/reader/widgets/reader_tap_invert/reader_tap_invert.dart';
@@ -41,13 +40,6 @@ abstract final class ReaderSettings {
     scope: ReaderSettingScope.perSeries,
     perSeriesKey: MangaMetaKeys.readerNavigationLayout,
     fallback: ReaderNavigationLayout.defaultNavigation,
-  );
-
-  static final sidePadding = ReaderSetting<double>(
-    scope: ReaderSettingScope.perSeries,
-    perSeriesKey: MangaMetaKeys.readerPadding,
-    global: readerPaddingKeyProvider,
-    fallback: DBKeys.readerPadding.initial as double,
   );
 
   /// Global-only today: the reader never reads the per-series invert meta.
@@ -398,7 +390,6 @@ abstract class ReaderSettingsState with _$ReaderSettingsState {
   const factory ReaderSettingsState({
     required ReaderMode readerMode,
     required ReaderNavigationLayout navigationLayout,
-    required double sidePadding,
     required bool invertTap,
     required ReaderOrientation readerOrientation,
     required TapInvert tapInvert,
@@ -519,7 +510,6 @@ class ReaderSettingsModel extends _$ReaderSettingsModel {
   late ReaderNavigationLayoutKey _navigationLayoutKey;
   late ReaderOrientationKey _readerOrientationKey;
   late ReaderTapInvertKey _readerTapInvertKey;
-  late ReaderPaddingKey _readerPaddingKey;
 
   @override
   ReaderSettingsState build(int mangaId) {
@@ -587,15 +577,12 @@ class ReaderSettingsModel extends _$ReaderSettingsModel {
     _navigationLayoutKey = ref.read(readerNavigationLayoutKeyProvider.notifier);
     _readerOrientationKey = ref.read(readerOrientationKeyProvider.notifier);
     _readerTapInvertKey = ref.read(readerTapInvertKeyProvider.notifier);
-    _readerPaddingKey = ref.read(readerPaddingKeyProvider.notifier);
     final meta =
         ref.watch(mangaWithIdProvider(mangaId: mangaId)).value?.metaData;
     return ReaderSettingsState(
       readerMode: ReaderSettings.mode.resolveWith(ref, meta?.readerMode),
       navigationLayout: ReaderSettings.navigationLayout
           .resolveWith(ref, meta?.readerNavigationLayout),
-      sidePadding:
-          ReaderSettings.sidePadding.resolveWith(ref, meta?.readerPadding),
       invertTap: ReaderSettings.invertTap.resolveWith(ref, null),
       readerOrientation: ReaderSettings.readerOrientation
           .resolveWith(ref, meta?.readerOrientation),
@@ -835,14 +822,6 @@ class ReaderSettingsModel extends _$ReaderSettingsModel {
           : _clearMetaThenWriteGlobal(
               MangaMetaKeys.readerNavigationLayout,
               () => _navigationLayoutKey.update(layout),
-            );
-
-  Future<void> setSidePadding(double value, {bool perSeries = true}) =>
-      perSeries
-          ? _patchMeta(MangaMetaKeys.readerPadding, value)
-          : _clearMetaThenWriteGlobal(
-              MangaMetaKeys.readerPadding,
-              () => _readerPaddingKey.update(value),
             );
 
   Future<void> setReaderOrientation(

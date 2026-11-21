@@ -406,6 +406,7 @@
     "@readerPadding": {
         "description": "Slider title text for Reader Padding"
     },
+    "readerZoom": "縮放",
     "chapterSortSource": "按來源",
     "@chapterSortSource": {
         "description": "Radio button text for sort by Source"

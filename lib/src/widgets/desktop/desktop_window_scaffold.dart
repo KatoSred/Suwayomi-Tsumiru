@@ -5,17 +5,20 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../routes/router_config.dart';
+import '../../utils/desktop/window_fullscreen.dart';
 import '../../utils/platform/platform_runtime.dart';
 import 'desktop_title_bar.dart';
 import 'desktop_top_bar.dart';
 import 'linux_window_frame.dart';
 
 /// Native title strip appears only without a displayed merged bar; reserve its height above content.
+/// Fullscreen drops the strip entirely — window buttons are window chrome, not content.
 class DesktopWindowScaffold extends ConsumerWidget {
   const DesktopWindowScaffold({super.key, required this.child});
   final Widget child;
@@ -27,23 +30,65 @@ class DesktopWindowScaffold extends ConsumerWidget {
     // Keep Router mounted: re-parsing route info loses non-JSON extras on resize.
     final showTitleBar = !(showsMergedTopBar(context) && mergedBarVisible);
     final routes = ref.watch(routerConfigProvider);
-    final content = Column(
-      children: [
-        if (showTitleBar)
-          ListenableBuilder(
-            listenable: routes.routerDelegate,
-            builder: (context, _) =>
-                DesktopTitleBar(hideBrand: _isOnboarding(routes)),
-          )
-        else
-          const SizedBox.shrink(),
-        Expanded(child: child),
-      ],
+
+    return _FullscreenHotkey(
+      child: ValueListenableBuilder<bool>(
+        valueListenable: desktopWindowFullscreen,
+        builder: (context, fullscreen, _) {
+          final content = Column(
+            children: [
+              if (showTitleBar && !fullscreen)
+                ListenableBuilder(
+                  listenable: routes.routerDelegate,
+                  builder: (context, _) =>
+                      DesktopTitleBar(hideBrand: _isOnboarding(routes)),
+                )
+              else
+                const SizedBox.shrink(),
+              Expanded(child: child),
+            ],
+          );
+          return !kIsWeb && defaultTargetPlatform == TargetPlatform.linux
+              ? LinuxWindowFrame(child: content)
+              : content;
+        },
+      ),
     );
-    return !kIsWeb && defaultTargetPlatform == TargetPlatform.linux
-        ? LinuxWindowFrame(child: content)
-        : content;
   }
+}
+
+/// F12 toggles fullscreen app-wide, independent of which widget holds focus.
+class _FullscreenHotkey extends StatefulWidget {
+  const _FullscreenHotkey({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_FullscreenHotkey> createState() => _FullscreenHotkeyState();
+}
+
+class _FullscreenHotkeyState extends State<_FullscreenHotkey> {
+  @override
+  void initState() {
+    super.initState();
+    HardwareKeyboard.instance.addHandler(_onKey);
+  }
+
+  @override
+  void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onKey);
+    super.dispose();
+  }
+
+  bool _onKey(KeyEvent event) {
+    if (event is! KeyDownEvent) return false;
+    if (event.logicalKey != LogicalKeyboardKey.f12) return false;
+    toggleDesktopWindowFullscreen();
+    return true;
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 bool _isOnboarding(GoRouter routes) {

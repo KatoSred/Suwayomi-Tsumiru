@@ -35,7 +35,6 @@ import 'widgets/reader_left_handed_seekbar_tile/reader_left_handed_seekbar_tile.
 import 'widgets/reader_mode_tile/reader_mode_tile.dart';
 import 'widgets/reader_mouse_scroll_speed_slider/reader_mouse_scroll_speed_slider.dart';
 import 'widgets/reader_navigation_layout_tile/reader_navigation_layout_tile.dart';
-import 'widgets/reader_padding_slider/reader_padding_slider.dart';
 import 'widgets/reader_paged_prefs/reader_paged_prefs.dart';
 import 'widgets/reader_pinch_to_zoom/reader_pinch_to_zoom.dart';
 import 'widgets/reader_swipe_toggle_tile/reader_swipe_chapter_toggle_tile.dart';
@@ -191,11 +190,6 @@ class ReaderSettingsScreen extends ConsumerWidget {
                         id: 'ignoreSafeArea',
                         child: ReaderIgnoreSafeAreaTile(),
                       ),
-                    // Padding applies to the non-scrolling axis in both paged and long-strip modes.
-                    const SettingsHighlightTarget(
-                      id: 'readerPadding',
-                      child: ReaderPaddingSlider(),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 16),

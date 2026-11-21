@@ -10,12 +10,14 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../../../../constants/enum.dart';
 import '../../../../../../utils/crash/diagnostics.dart';
 import '../../../../../../utils/motion/reduce_motion.dart';
 import '../../../../../../widgets/custom_circular_progress_indicator.dart';
+import '../../controller/reader_zoom.dart';
 import '../reader_wrapper.dart';
 import 'double_page_view.dart';
 import 'paged_display_window.dart';
@@ -114,6 +116,7 @@ class PagedReaderViewport extends StatefulWidget {
     required this.disableZoomIn,
     required this.disableZoomOut,
     required this.navigateToPan,
+    this.sessionZoom,
     this.onIdle,
     this.onReachedStartEdge,
     this.onReachedEndEdge,
@@ -165,6 +168,11 @@ class PagedReaderViewport extends StatefulWidget {
   final bool disableZoomIn;
   final bool disableZoomOut;
   final bool navigateToPan;
+
+  /// Session zoom owned by the reader: the slider and Ctrl + wheel write here,
+  /// this view applies it to the current page, and pinches report back.
+  /// Defaults to the app-wide session notifier.
+  final ValueNotifier<double>? sessionZoom;
 
   @override
   State<PagedReaderViewport> createState() => _PagedReaderViewportState();
@@ -261,6 +269,12 @@ class _PagedReaderViewportState extends State<PagedReaderViewport>
   Animation<Offset>? _zoomOffsetTween;
   _PageZoomController? _zoomAnimationTarget;
 
+  /// Set while the session notifier is being driven from inside this view, so
+  /// its listener does not echo the same scale straight back.
+  bool _syncingSessionZoom = false;
+
+  ValueNotifier<double> get _sessionZoom => widget.sessionZoom ?? readerZoom;
+
   @override
   void initState() {
     super.initState();
@@ -306,9 +320,11 @@ class _PagedReaderViewportState extends State<PagedReaderViewport>
       }
     });
     widget.controller._attach(this);
+    _sessionZoom.addListener(_onSessionZoomChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _emitRawPage();
+      _applySessionZoom();
     });
   }
 
@@ -332,6 +348,7 @@ class _PagedReaderViewportState extends State<PagedReaderViewport>
 
   @override
   void dispose() {
+    _sessionZoom.removeListener(_onSessionZoomChanged);
     widget.controller._detach(this);
     _pageAnimation.dispose();
     _panAnimation.dispose();
@@ -342,6 +359,61 @@ class _PagedReaderViewportState extends State<PagedReaderViewport>
       controller.dispose();
     }
     super.dispose();
+  }
+
+
+  /// Session zoom is per page here: turning a page resets both the shared value
+  /// and the new page's own scale, so every page opens at fit-to-screen.
+  void _resetSessionZoomOnPageChange() {
+    if (!_syncingSessionZoom) {
+      _syncingSessionZoom = true;
+      if (_sessionZoom.value != 1.0) _sessionZoom.value = 1.0;
+      _syncingSessionZoom = false;
+    }
+    final zoom = _currentZoomOrNull;
+    if (zoom == null) return;
+    if (readerZoomDiffers(zoom.scale, zoom.baseScale) ||
+        zoom.offset != Offset.zero) {
+      zoom.setScaleOffset(zoom.baseScale, Offset.zero);
+    }
+  }
+
+  void _onSessionZoomChanged() {
+    if (_syncingSessionZoom) return;
+    _applySessionZoom();
+  }
+
+  void _applySessionZoom() {
+    final zoom = _currentZoomOrNull;
+    if (zoom == null) return;
+    final target = zoom.baseScale * _sessionZoom.value;
+    if (!readerZoomDiffers(zoom.scale, target)) return;
+    final focal = Offset(_viewportSize.width / 2, _viewportSize.height / 2);
+    _syncingSessionZoom = true;
+    zoom.setScaleAround(target, focal);
+    _syncingSessionZoom = false;
+  }
+
+  /// The controller of the page on screen, without the side effects of
+  /// [_currentZoomOrNull] (which configures and may notify, and notifies during
+  /// a notification). Null on transition cards, which have no zoom state.
+  _PageZoomController? _currentSpreadZoom() {
+    if (_displayIndex < 0 || _displayIndex >= widget.window.length) return null;
+    final item = widget.window.items[_displayIndex];
+    if (item is! SpreadDisplay) return null;
+    return _zoomControllers[(chapterId: item.chapterId, unit: item.entry.first)];
+  }
+
+  /// Mirror a gesture-driven scale into the shared value so the settings
+  /// slider shows where the reader actually is.
+  void _publishSessionZoom(_PageZoomController controller) {
+    if (_syncingSessionZoom || !mounted) return;
+    if (!identical(_currentSpreadZoom(), controller)) return;
+    final multiplier = controller.scale / controller.baseScale;
+    if (!readerZoomDiffers(_sessionZoom.value, multiplier)) return;
+    _syncingSessionZoom = true;
+    _sessionZoom.value = clampReaderZoom(multiplier);
+    _syncingSessionZoom = false;
   }
 
   void _reanchor(PagedDisplayWindow oldWindow, {bool anchorLast = false}) {
@@ -382,6 +454,7 @@ class _PagedReaderViewportState extends State<PagedReaderViewport>
         : _clampDisplay(widget.initialDisplayIndex);
     _dragOffset = 0;
     _pruneDistantZoom();
+    _resetSessionZoomOnPageChange();
     // didUpdateWidget runs during build; defer ancestor notification.
     Future.microtask(() {
       if (mounted) _emitRawPage();
@@ -419,6 +492,7 @@ class _PagedReaderViewportState extends State<PagedReaderViewport>
       _dragOffset = 0;
     });
     _pruneDistantZoom();
+    _resetSessionZoomOnPageChange();
     _emitRawPage();
   }
 
@@ -519,10 +593,14 @@ class _PagedReaderViewportState extends State<PagedReaderViewport>
     final item = widget.window.items[displayIndex] as SpreadDisplay;
     return _zoomControllers.putIfAbsent(
       (chapterId: item.chapterId, unit: item.entry.first),
-      () => _PageZoomController(
-        minMultiplier: _minMultiplier,
-        maxMultiplier: _maxMultiplier,
-      ),
+      () {
+        final controller = _PageZoomController(
+          minMultiplier: _minMultiplier,
+          maxMultiplier: _maxMultiplier,
+        );
+        controller.addListener(() => _publishSessionZoom(controller));
+        return controller;
+      },
     );
   }
 
@@ -715,6 +793,9 @@ class _PagedReaderViewportState extends State<PagedReaderViewport>
   void _onPointerSignal(PointerSignalEvent event) {
     if (event is! PointerScrollEvent) return;
     if (event.kind != PointerDeviceKind.mouse) return;
+    // Ctrl + wheel belongs to reader zoom; this handler runs outside the
+    // pointer-signal resolver, so it has to opt out explicitly.
+    if (HardwareKeyboard.instance.isControlPressed) return;
     final dx = event.scrollDelta.dx;
     final dy = event.scrollDelta.dy;
     final raw = dy != 0 ? dy : dx;
@@ -1064,6 +1145,7 @@ class _PagedReaderViewportState extends State<PagedReaderViewport>
           _dragOffset = 0;
         });
         _pruneDistantZoom();
+        _resetSessionZoomOnPageChange();
         _emitRawPage();
       },
     );

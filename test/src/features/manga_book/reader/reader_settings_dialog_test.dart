@@ -50,13 +50,12 @@ MangaDto _manga() => Fragment$MangaDto(
   ),
 );
 
-/// Mimics ReaderWrapper's gear tap: owns the visibility/padding
+/// Mimics ReaderWrapper's gear tap: owns the visibility
 /// notifiers and opens the sheet through the real helper.
 class _SheetHost extends ConsumerWidget {
-  const _SheetHost({required this.visibility, required this.padding});
+  const _SheetHost({required this.visibility});
 
   final ValueNotifier<bool> visibility;
-  final ValueNotifier<double> padding;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -68,7 +67,6 @@ class _SheetHost extends ConsumerWidget {
             ref: ref,
             mangaId: 1,
             visibility: visibility,
-            readerPadding: padding,
           ),
           child: const Text('open'),
         ),
@@ -97,7 +95,7 @@ void main() {
         child: MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: _SheetHost(visibility: visibility, padding: ValueNotifier(0.0)),
+          home: _SheetHost(visibility: visibility),
         ),
       ),
     );

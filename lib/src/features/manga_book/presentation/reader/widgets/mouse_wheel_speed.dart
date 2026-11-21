@@ -141,6 +141,8 @@ class _MouseWheelSpeedState extends State<MouseWheelSpeed>
   void _onPointerSignal(PointerSignalEvent event) {
     if (event is! PointerScrollEvent) return;
     if (event.kind != PointerDeviceKind.mouse) return;
+    // Ctrl + wheel is reader zoom; never let it also glide the strip.
+    if (HardwareKeyboard.instance.isControlPressed) return;
     final position = widget.positionOf();
     if (position == null || !position.hasPixels) return;
     // Scrollable only registers when the event would move it. Doing the same

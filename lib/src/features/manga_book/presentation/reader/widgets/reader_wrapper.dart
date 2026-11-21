@@ -6,6 +6,8 @@
 
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_android_volume_keydown/flutter_android_volume_keydown.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -16,6 +18,7 @@ import '../../../../../constants/db_keys.dart';
 import '../../../../../constants/enum.dart';
 import '../../../../../constants/reader_keyboard_shortcuts.dart';
 import '../../../../../routes/router_config.dart';
+import '../../../../../utils/desktop/window_fullscreen.dart';
 import '../../../../../utils/extensions/custom_extensions.dart';
 import '../../../../../utils/motion/reduce_motion.dart';
 import '../../../../../widgets/popup_widgets/radio_list_popup.dart';
@@ -25,7 +28,6 @@ import '../../../../settings/presentation/reader/widgets/reader_initial_overlay_
 import '../../../../settings/presentation/reader/widgets/reader_invert_tap_tile/reader_invert_tap_tile.dart';
 import '../../../../settings/presentation/reader/widgets/reader_last_page_swipe_tile/reader_last_page_swipe_tile.dart';
 import '../../../../settings/presentation/reader/widgets/reader_mode_tile/reader_mode_tile.dart';
-import '../../../../settings/presentation/reader/widgets/reader_padding_slider/reader_padding_slider.dart';
 import '../../../../settings/presentation/reader/widgets/reader_paged_prefs/reader_paged_prefs.dart';
 import '../../../../settings/presentation/reader/widgets/reader_swipe_toggle_tile/reader_swipe_chapter_toggle_tile.dart';
 import '../../../../settings/presentation/reader/widgets/reader_volume_tap_invert_tile/reader_volume_tap_invert_tile.dart';
@@ -40,6 +42,7 @@ import '../../manga_details/controller/manga_details_controller.dart';
 import '../controller/auto_scroll_controller.dart';
 import '../controller/reader_controller.dart';
 import '../controller/reader_settings_model.dart';
+import '../controller/reader_zoom.dart';
 import '../utils/koreader_progress_actions.dart';
 import '../utils/last_page_swipe_utils.dart';
 import '../utils/reader_mode_kind.dart';
@@ -276,9 +279,6 @@ class ReaderWrapper extends HookConsumerWidget {
     final bool volumeTap = ref.watch(volumeTapProvider).ifNull();
     final bool volumeTapInvert = ref.watch(volumeTapInvertProvider).ifNull();
 
-    final double localMangaReaderPadding =
-        ref.watch(readerPaddingKeyProvider) ?? DBKeys.readerPadding.initial;
-
     final bool readerSwipeChapterToggle =
         ref.watch(swipeChapterToggleProvider) ?? DBKeys.swipeToggle.initial;
 
@@ -291,9 +291,6 @@ class ReaderWrapper extends HookConsumerWidget {
       sessionVisibility ?? ref.read(readerInitialOverlayProvider).ifNull(),
     );
     final utilsBarExpanded = useState(false);
-    final mangaReaderPadding = useState(
-      manga.metaData.readerPadding ?? localMangaReaderPadding,
-    );
 
     final mangaReaderMode =
         manga.metaData.readerMode ?? ReaderMode.defaultReader;
@@ -635,6 +632,32 @@ class ReaderWrapper extends HookConsumerWidget {
       return () => subscription?.cancel();
     }, [volumeTap, volumeTapInvert, visibility.value]);
 
+    // Session zoom lives outside any single view: it must start at fit and be
+    // cleared on exit, otherwise the next reader inherits the old scale and the
+    // zoomed flag that disables chapter swipes.
+    final zoomedInNotifier = ref.read(readerIsZoomedInProvider.notifier);
+    useEffect(() {
+      resetReaderZoom();
+      return () {
+        resetReaderZoom();
+        zoomedInNotifier.state = false;
+        exitDesktopWindowFullscreen();
+      };
+    }, const []);
+
+    void handleCtrlWheel(PointerSignalEvent event) {
+      if (event is! PointerScrollEvent) return;
+      if (!HardwareKeyboard.instance.isControlPressed) return;
+      final delta = event.scrollDelta.dy != 0
+          ? event.scrollDelta.dy
+          : event.scrollDelta.dx;
+      if (delta == 0) return;
+      // Claim the event before the scrollables do, so Ctrl + wheel never pages.
+      GestureBinding.instance.pointerSignalResolver.register(event, (_) {
+        stepReaderZoom(delta < 0 ? kReaderZoomWheelStep : -kReaderZoomWheelStep);
+      });
+    }
+
     return Theme(
       data: context.theme.copyWith(
         bottomSheetTheme: const BottomSheetThemeData(
@@ -777,7 +800,6 @@ class ReaderWrapper extends HookConsumerWidget {
                           scrollDirection: scrollDirection,
                           mangaId: manga.id,
                           readerScanlatorGroup: readerScanlatorGroup ?? '',
-                          mangaReaderPadding: mangaReaderPadding.value,
                           onNext: onAdvanceNext,
                           onPrevious: onAdvancePrevious,
                           onNextBoundary: tryNextChapter,
@@ -852,7 +874,6 @@ class ReaderWrapper extends HookConsumerWidget {
                     ref: ref,
                     mangaId: manga.id,
                     visibility: visibility,
-                    readerPadding: mangaReaderPadding,
                   );
                   // The reader may have been closed while the sheet was open —
                   // the focus node is disposed by then, so guard before using it.
@@ -863,6 +884,15 @@ class ReaderWrapper extends HookConsumerWidget {
                   if (!editing) readerFocusNode.requestFocus();
                 },
                 onOpenReaderMode: showReaderModePopup,
+              ),
+            ),
+            // Last child wins hit testing, and the first registered pointer
+            // signal handler owns the event: that is what lets Ctrl + wheel
+            // zoom instead of paging.
+            Positioned.fill(
+              child: Listener(
+                behavior: HitTestBehavior.translucent,
+                onPointerSignal: handleCtrlWheel,
               ),
             ),
           ],
@@ -1119,7 +1149,6 @@ class ReaderView extends HookConsumerWidget {
     required this.scrollDirection,
     required this.mangaId,
     required this.readerScanlatorGroup,
-    required this.mangaReaderPadding,
     required this.onNext,
     required this.onPrevious,
     required this.prevNextChapterPair,
@@ -1149,7 +1178,6 @@ class ReaderView extends HookConsumerWidget {
   final Axis scrollDirection;
   final int mangaId;
   final String readerScanlatorGroup;
-  final double mangaReaderPadding;
   final VoidCallback onNext;
   final VoidCallback onPrevious;
   final bool Function() onNextBoundary;
@@ -1177,17 +1205,7 @@ class ReaderView extends HookConsumerWidget {
     final readWithLongTap =
         ref.watch(readWithLongTapProvider) ?? DBKeys.readWithLongTap.initial;
 
-    Widget content = Padding(
-      padding: EdgeInsets.symmetric(
-        vertical:
-            context.height *
-            (scrollDirection != Axis.vertical ? mangaReaderPadding : 0),
-        horizontal:
-            context.width *
-            (scrollDirection == Axis.vertical ? mangaReaderPadding : 0),
-      ),
-      child: child,
-    );
+    Widget content = child;
 
     final PageController? controller =
         pageController ??

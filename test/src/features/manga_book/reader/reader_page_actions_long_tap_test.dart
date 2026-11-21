@@ -67,7 +67,6 @@ Future<void> _pumpReader(
             scrollDirection: Axis.vertical,
             mangaId: 1,
             readerScanlatorGroup: '',
-            mangaReaderPadding: 0,
             onNext: () {},
             onPrevious: () {},
             prevNextChapterPair: null,

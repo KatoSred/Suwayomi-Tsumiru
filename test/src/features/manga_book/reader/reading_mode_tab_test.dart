@@ -110,7 +110,7 @@ void main() {
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
-            body: ReadingModeTab(mangaId: 1, readerPadding: ValueNotifier(0.0)),
+            body: ReadingModeTab(mangaId: 1),
           ),
         ),
       ),

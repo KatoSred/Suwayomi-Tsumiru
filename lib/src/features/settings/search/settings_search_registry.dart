@@ -396,13 +396,6 @@ List<SettingsSearchEntry> get readerSettingsSearchEntries => [
     visible: (_, _) => true,
   ),
   SettingsSearchEntry(
-    id: 'readerPadding',
-    title: (l) => l.readerPadding,
-    breadcrumb: (l) => '${l.reader} › ${l.readerGroupDisplay}',
-    open: (c) => const ReaderSettingsRoute(highlight: 'readerPadding').push(c),
-    visible: (_, _) => true,
-  ),
-  SettingsSearchEntry(
     id: 'keepScreenOn',
     title: (l) => l.readerKeepScreenOn,
     breadcrumb: (l) => '${l.reader} › ${l.readerGroupDisplay}',

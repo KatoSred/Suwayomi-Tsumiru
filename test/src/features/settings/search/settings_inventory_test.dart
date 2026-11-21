@@ -47,7 +47,6 @@ const List<String> _preReorgIds = [
   'showContentInCutoutArea',
   'showPageNumber',
   'readerOverlay',
-  'readerPadding',
   'keepScreenOn',
   'ignoreSafeArea',
   'flashOnPageChange',

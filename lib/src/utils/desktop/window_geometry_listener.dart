@@ -9,6 +9,7 @@ import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
 
+import 'window_fullscreen.dart';
 import 'window_geometry.dart';
 import 'window_geometry_store.dart';
 
@@ -39,6 +40,9 @@ class WindowGeometryListener with WindowListener {
   }
 
   Future<void> _persistNow() async {
+    // Fullscreen bounds are not the window's rest size; keep the last real one
+    // so the next launch does not open at monitor size.
+    if (desktopWindowFullscreen.value) return;
     final maximized = await windowManager.isMaximized();
     if (shouldPersistSize(isMaximized: maximized)) {
       final size = await windowManager.getSize();

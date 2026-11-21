@@ -47,6 +47,7 @@ import '../../../../manga_details/controller/scanlator_dedup.dart';
 import '../../../controller/auto_scroll_controller.dart';
 import '../../../controller/reader_controller.dart';
 import '../../../controller/reader_settings_model.dart';
+import '../../../controller/reader_zoom.dart';
 import '../../../utils/download_ahead.dart';
 import '../../../utils/flush_progress_on_lifecycle.dart';
 import '../../../utils/reader_initial_page.dart';
@@ -1516,18 +1517,21 @@ class MultiChapterContinuousReaderMode extends HookConsumerWidget {
       child: wheelAware,
     );
 
+    // Desktop has no pinch or double tap, but the zoom layer still backs the
+    // settings slider and Ctrl + wheel, and gives drag-to-pan once zoomed.
+    final isTouchPlatform =
+        !kIsWeb && (Platform.isAndroid || Platform.isIOS);
     final child = AppUtils.wrapOn(
-      !kIsWeb &&
-              (Platform.isAndroid || Platform.isIOS) &&
-              (isPinchToZoomEnabled || isDoubleTapZoomEnabled)
+      !kIsWeb
           ? (Widget child) => ReaderZoomView(
               controller: zoomScrollController,
               scrollAxis: scrollDirection,
               reverse: reverse,
               maxScale: InfinityContinuousConfig.maxZoomScale,
               minScale: isZoomOutDisabled ? 1 : 0.5,
-              pinchEnabled: isPinchToZoomEnabled,
-              doubleTapToZoom: isDoubleTapZoomEnabled,
+              pinchEnabled: isTouchPlatform && isPinchToZoomEnabled,
+              doubleTapToZoom: isTouchPlatform && isDoubleTapZoomEnabled,
+              sessionZoom: readerZoom,
               onScaleChanged: (scale) {
                 final notifier = ref.read(readerIsZoomedInProvider.notifier);
                 final zoomed = scale > 1.01;
